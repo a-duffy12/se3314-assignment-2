@@ -1,8 +1,11 @@
 // You may need to add some delectation here
+let singleton = require('./Singleton');
 let peerTable = require('./peerTable');
 let filePath = require('path');
 
 // variables to track peer properties
+let currentTime;
+let currentSeq;
 let currentFile = filePath.dirname(__filename).split("\\");
 let folderLen = currentFile.length - 1;
 let folderName = currentFile[folderLen].slice(0, currentFile[folderLen].indexOf("-"));
