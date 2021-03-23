@@ -22,7 +22,7 @@ let server = net.createServer();
 server.listen(port, HOST); // listen for connections
 let client = new net.Socket();
 
-if (typeof(process.argv[3]) === "undefined") // no argument given for -p
+if (typeof(process.argv[3]) === "undefined") // no argument given for -p (initial node)
 {
     console.log(`This peer address is ${HOST}:${port} located at ${folderName}`);
 
@@ -33,15 +33,22 @@ if (typeof(process.argv[3]) === "undefined") // no argument given for -p
 
         if (cons > maxp) // peer table is full
         {
-            console.log(`Peer table full at ${sock.remoteAddress}:${sock.remotePort}, redirected`);
+            console.log(`Peer table full: ${sock.remoteAddress}:${sock.remotePort} redirected`);
         }
         else // peer table has open slots
         {
             console.log(`Connected from peer ${sock.remoteAddress}:${sock.remotePort}`);
         }
+
+        sock.on("end", (err) => { // TODO
+            if (err) throw err;
+            sock.on("close", (err) => {
+                if (err) throw err;
+            })
+        })
     });
 }
-else // argument given for -p
+else // argument given for -p (connecting to established node)
 {
     let addPort = process.argv[3]; // get command line ip address and port
     let port = addPort.substring(addPort.indexOf(":") + 1); // get port
@@ -60,7 +67,7 @@ else // argument given for -p
 
             if (newCons > maxp)
             {
-                console.log(`Peer table full at ${sock.remoteAddress}:${sock.remotePort}, redirected`);;
+                console.log(`Peer table full: ${sock.remoteAddress}:${sock.remotePort} redirected`);;
                 client.end();
             }
             else
@@ -69,8 +76,11 @@ else // argument given for -p
                 peerHandler.handlePeerJoining(sock, version, maxp);
             }
 
-            sock.on("close", () => {
-                // console log // TODO
+            sock.on("end", (err) => { // TODO
+                if (err) throw err;
+                sock.on("close", (err) => {
+                    if (err) throw err;
+                })
             })
         });
 
@@ -84,13 +94,13 @@ else // argument given for -p
         {
             if (res.slice(1, 2).readUInt8(0) == 1) // if welcome is received
             {
-                console.log(`Connected to peer ${res.slice(5, 7).readUInt16BE()}:${res.slice(7, 9).readUInt16BE()} at timestamp: ${singleton.getTimestamp()}`);
+                console.log(`Connected to peer ${res.slice(5, 10).toString()}:${res.slice(10, 12).readUInt16BE()} at timestamp: ${singleton.getTimestamp()}`);
                 console.log(`This peer address is ${HOST}:${client.address().port} located at ${folderName}`);
-                console.log(`Received ack from ${res.slice(5, 7).readUInt16BE()}:${res.slice(7, 9).readUInt16BE()}`)
+                console.log(`Received ack from ${res.slice(5, 10).toString()}:${res.slice(10, 12).readUInt16BE()}`); // TODO first slice outputs zero, not the value
 
                 if (res.slice(2, 4).readUInt16BE() >= 1)
                 {
-                    console.log(`   which is peered with:[${res.slice(9, 10).readUInt8()}.${res.slice(10, 11).readUInt8()}.${res.slice(11, 12).readUInt8()}.${res.slice(12, 13).readUInt8()}:${res.slice(13, 15).readUInt16BE()}]`);
+                    console.log(`   which is peered with:[${res.slice(12, 13).readUInt8()}.${res.slice(13, 14).readUInt8()}.${res.slice(14, 15).readUInt8()}.${res.slice(15, 16).readUInt8()}:${res.slice(16, 18).readUInt16BE()}]`);
                 }
 
             }
@@ -113,9 +123,4 @@ else // argument given for -p
     client.on(('close'), () => {
         console.log(`Connection closed`);
     });
-}
-
-function makeFunction (cs)
-{
-
 }

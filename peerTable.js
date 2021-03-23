@@ -2,7 +2,7 @@
 
 let table = [0, 0]; // peer table
 
-module.export = {
+module.exports = {
 
     // function to add a new peer to the table
     joinPeer: function (peer)
