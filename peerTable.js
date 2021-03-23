@@ -1,6 +1,6 @@
 // You may need to add some delectation here
 let singleton = require('./Singleton');
-//let net = require('net');
+let net = require('net');
 
 let table = [0, 0]; // peer table
 

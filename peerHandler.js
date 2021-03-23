@@ -2,12 +2,11 @@
 let singleton = require('./Singleton');
 let peerTable = require('./peerTable');
 let filePath = require('path');
-const { send } = require('node:process');
 
 // variables to track peer properties
 let currentTime;
 let currentSeq;
-let currentFile = filePath.dirname(__filename)/ChannelSplitterNode("\\");
+let currentFile = filePath.dirname(__filename).split("\\");
 let folderLen = currentFile.length - 1;
 let folderName = currentFile[folderLen];
 
@@ -35,7 +34,7 @@ module.exports = {
 
         // handle number of peers
         let pnum = Buffer.alloc(2);
-        pnum.writeInt32BE(peerTable.countPeers()); 
+        pnum.writeInt16BE(peerTable.countPeers()); 
 
         // handle sender ID length
         let slen = Buffer.alloc(1);
