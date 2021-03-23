@@ -1,154 +1,80 @@
 // You may need to add some delectation here
 const fs = require('fs');
-let ITPpacket = require('./ITPResponse');
 let singleton = require('./Singleton');
+let peerTable = require('./peerTable');
+let filePath = require('path');
+const { send } = require('node:process');
 
 // variables to track server properties
 let currentTime;
 let currentSeq;
-let extRaw = "";
-let fname = "";
+let currentFile = filePath.dirname(__filename)/ChannelSplitterNode("\\");
+let folderLen = currentFile.length - 1;
+let folderName = currentFile[folderLen];
 
 module.exports = {
 
-    handleClientJoining: function (sock) {
+    handleClientJoining: function (sock, ver, pmax) {
         
-        currentTime = singleton.getTimestamp(); // get current time stamp
-        currentSeq = singleton.getSequenceNumber(); // get current sequence number
+        
+        // handle version
+        let version = Buffer.alloc(1);
+        version.writeUInt8(ver);
 
-        console.log(`Client-${currentSeq} is connected at timestamp: ${currentTime}\n`);
-        sock.on("data", getData); // output packet info from the socket
-        console.log("");
-        sock.on("close", (req) => {
-            console.log(`Client-${currentTime} closed the connection\n`);
-        });
-
-        // function to get packet data from the client and output it
-        function getData(data) 
+        if (peerTable.isFull() == false) // there are still availble slots in the peer table
         {
-            // get information from packet
-            var version = data.slice(0, 2).readUInt16BE(0);
-            var type = data.slice(3).readUInt8(0).toString();
-            var ext = data.slice(4, 7).readUInt16BE(0);
-            var name = data.slice(8).toString();
+            // handle message type
+            let type = Buffer.alloc(1)
+            type.writeUInt8(1); // 1 means welcome
+        }
+        else if (peerTable.isFull() == true) // there are no more available slots in the peer table
+        {
+            // handle message type
+            let type = Buffer.alloc(1)
+            type.writeUInt8(2); // 2 means redirect
+        }
 
-            // decode file type
-            if (ext == 1)
-            {
-                extRaw = "bmp";
-            }
-            else if (ext == 2)
-            {
-                extRaw = "jpg";
-            }
-            else if (ext == 3)
-            {
-                extRaw = "gif";
-            }
-            else if (ext == 4)
-            {
-                extRaw = "png";
-            }
-            else if (ext == 5)
-            {
-                extRaw = "tiff";
-            }
-            else if (ext == 12)
-            {
-                extRaw = "jpeg";
-            }
-            else if (ext == 15)
-            {
-                extRaw = "raw"
-            }
-            fname = name + "." + extRaw;
+        // handle number of peers
+        let pnum = Buffer.alloc(2);
+        pnum.writeInt32BE(peerTable.countPeers()); 
 
-            console.log(`Client-${currentSeq} requests:`);
-            console.log(`   --ITP Version: ${version}`);
-            //console.log(`   --Image Count:`); // TODO
-            if (type == 0)
-            {
-                console.log(`   --Request Type = Query`);
-            }
-            else if (type == 1)
-            {
-                console.log(`   --Request Type = Found`);
-            }
-            else if (type == 2)
-            {
-                console.log(`   --Request Type = Not Found`);
-            }
-            else if (type == 3)
-            {
-                console.log(`   --Request Type = Busy`);
-            }
-            console.log(`   --Image File Extension(s): ${extRaw.toUpperCase()}`);
-            console.log(`   --Image File Name(s): ${name}\n`);
+        // handle sender ID length
+        let slen = Buffer.alloc(1);
+        slen.writeUInt8(folderName.length);
 
-            var resType = 2; // create query for response
-            var resCount = 0; // count how many are returned
+        // handle sender ID name
+        folderName = folderName + ":" + sock.localPort;
+        let [a, b] = folderName.split(":");
+        
+        // handle sender ID data
+        let sID = [Buffer.alloc(2), Buffer.alloc(2)];
+        sID[0].writeUInt16BE(parseInt(a.substr(1, 1)));
+        sID[1].writeUInt16BE(parseInt(b));
+        
+        // handle port and ip address
+        let pPort = Buffer.alloc(2);
+        let pAddress = [Buffer.alloc(1), Buffer.alloc(1), Buffer.alloc(1), Buffer.alloc(1)];
 
-            // check packet contents are ok
-            var ok = false;
+        if (peerTable.countPeers() >= 1) // can share another peer's information
+        {
+            let peer = peerTable.getPeer(0).split(":"); // get first peer
+            let [a, b, c, d] = peer[0].split("."); // get address of this peer
 
-            if (version == 7 && type == 0 && fname !="")
-            {
-                ok = true; // allow request
-            }
+            pPort.writeUInt16BE(peer[1]); // get port of this peer 
+            pAddress[0] = writeUInt8(a); // get ip address of this peer
+            pAddress[1] = writeUInt8(b); // get ip address of this peer
+            pAddress[2] = writeUInt8(c); // get ip address of this peer
+            pAddress[3] = writeUInt8(d); // get ip address of this peer
+        }
 
-            if (!ok) // bad request
-            {
-                imageData = Buffer.alloc(1); // allocate bit
-                ITPpacket.init(version, 0, 3, currentSeq, currentTime, 0, 0, res); // create a packet
+        if (peerTable.isFull() == false) // there are still availble slots in the peer table
+        {
+            peerTable.joinPeer(sock.remoteAddress + ":" + sock.remotePort); // add new peer to peer table
+        }
 
-                packet = ITPpacket.getPacket(); // build packet
-                sock.write(packet); // send packet
-            }
-            else // good request
-            {
-                // get requested images
-                fs.readdir('./images', (err, list) => {
-                
-                    for (let i = 0; i < list.length; i++)
-                    {
-                        if (fname == list[i])
-                        {
-                            resType = 1;
-                            resCount++;
-                        }
-                    }
-                
-                    var imageData; // data for image
-                    var packet; // packet to send
+        let packet = Buffer.concat([version, type, pnum, slen, ...senderID, ...pAddress, pPort]); // build packet
+        sock.write(packet); // send packet
 
-                    if (resType == 2) // image(s) not found
-                    {
-                        imageData = Buffer.alloc(1); // allocate bit
-                        ITPpacket.init(version, 0, resType, currentSeq, currentTime, 0, 0, imageData); // create a packet
-
-                        packet = ITPpacket.getPacket(); // build packet
-                        sock.write(packet); // send packet
-                    }
-                    else if (resType == 1) // image(s) found
-                    {
-                        fs.readFile("./images/" + fname, (err, res) => {
-                        
-                            if (err)
-                            {
-                                throw err;
-                            }
-
-                            let size = res.length; // get size
-                            imageData = res;
-
-                            ITPpacket.init(version, 1, resType, currentSeq, currentTime, ext, size, imageData); // create a packet
-
-                            packet = ITPpacket.getPacket(); // build packet
-                            sock.write(packet); // send packet
-                        })
-                    }
-                })
-            }
-        }    
+        // 1 + 1 + 2 + 1 + 4(2+2) + 4(1+1+1+1) + 2
     }
 };
