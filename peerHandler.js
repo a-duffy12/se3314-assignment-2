@@ -1,11 +1,10 @@
 // You may need to add some delectation here
-const fs = require('fs');
 let singleton = require('./Singleton');
 let peerTable = require('./peerTable');
 let filePath = require('path');
 const { send } = require('node:process');
 
-// variables to track server properties
+// variables to track peer properties
 let currentTime;
 let currentSeq;
 let currentFile = filePath.dirname(__filename)/ChannelSplitterNode("\\");
@@ -14,9 +13,9 @@ let folderName = currentFile[folderLen];
 
 module.exports = {
 
-    handleClientJoining: function (sock, ver, pmax) {
-        
-        
+    // function to handle a peer joining
+    handlePeerJoining: function (sock, ver, pmax) 
+    {
         // handle version
         let version = Buffer.alloc(1);
         version.writeUInt8(ver);
@@ -51,13 +50,15 @@ module.exports = {
         sID[0].writeUInt16BE(parseInt(a.substr(1, 1)));
         sID[1].writeUInt16BE(parseInt(b));
         
-        // handle port and ip address
+        // TODO make an array of port and address pairs can be sent
+
+        // handle port and ip address 
         let pPort = Buffer.alloc(2);
         let pAddress = [Buffer.alloc(1), Buffer.alloc(1), Buffer.alloc(1), Buffer.alloc(1)];
 
-        if (peerTable.countPeers() >= 1) // can share another peer's information
+        for (let i = 0; i < peerTable.countPeers(); i++) // can share another peer's information
         {
-            let peer = peerTable.getPeer(0).split(":"); // get first peer
+            let peer = peerTable.getPeer(i).split(":"); // get first peer
             let [a, b, c, d] = peer[0].split("."); // get address of this peer
 
             pPort.writeUInt16BE(peer[1]); // get port of this peer 
