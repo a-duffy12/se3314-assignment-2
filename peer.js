@@ -42,9 +42,6 @@ if (typeof(process.argv[3]) === "undefined") // no argument given for -p (initia
 
         sock.on("end", (err) => { // TODO
             if (err) throw err;
-            sock.on("close", (err) => {
-                if (err) throw err;
-            })
         })
     });
 }
@@ -57,8 +54,63 @@ else // argument given for -p (connecting to established node)
     // connect client to server
     client.connect(port, address, () => { 
         singleton.init();
+        initPeer();
+    });
 
-        let newCons = 1;
+    // when the client receives a packet
+    client.on('data', (res) => {
+
+        if (res.slice(0, 1).readUInt8(0) == 7) // check if version is correct
+        {
+            if (res.slice(1, 2).readUInt8(0) == 1) // if welcome is received
+            {
+                console.log(`Connected to peer ${res.slice(5, 10).toString()}:${res.slice(10, 12).readUInt16BE()} at timestamp: ${singleton.getTimestamp()}`);
+                console.log(`This peer address is ${HOST}:${client.address().port} located at ${folderName}`);
+                console.log(`Received ack from ${res.slice(5, 10).toString()}:${res.slice(10, 12).readUInt16BE()}`);
+
+                if (res.slice(2, 4).readUInt16BE() >= 1)
+                {
+                    console.log(`   which is peered with:[${res.slice(12, 13).readUInt8()}.${res.slice(13, 14).readUInt8()}.${res.slice(14, 15).readUInt8()}.${res.slice(15, 16).readUInt8()}:${res.slice(16, 18).readUInt16BE()}]`);
+                }
+
+            }
+            else if (res.slice(1, 2).readUInt8(0) == 2) // if redirect is received
+            {
+                console.log(`The join has been declined, try joining one of the following peers`);
+
+                let attempts = res.slice(2, 4).readUInt16BE(); // get number of possible attempts 
+
+                if (attempts > 1) // TODO only sends a single option
+                {
+                    attempts = 1;
+                }
+
+                // get all ip and ports sent
+                for (let i = 1; i <= attempts; i++)
+                {
+                    tAddress = res.slice(12+(i*0), 12+(i*1)).readUInt8(0) + "." + res.slice(12+(i*1), 12+(i*2)).readUInt8(0) + "." + res.slice(12+(i*2), 12+(i*3)).readUInt8(0) + "." + res.slice(12+(i*3), 12+(i*4)).readUInt8(0);
+                    tPort = Number(res.slice(12+(i*4), 12+(i*6)).readUInt16BE());
+
+                    console.log(`   >> ${tAddress}:${tPort}`);
+                }
+                client.end(); // get rid of instance and start again
+            }
+        }
+        else
+        {
+            console.log(`Incorrect version, discarded packet`);
+        }
+    });
+
+    // when the client closes the connection
+    client.on(('close'), () => {
+        console.log(`Connection closed`);
+    });
+}
+
+function initPeer()
+{
+    let newCons = 1;
         let clientServer = net.createServer();
         clientServer.listen(client.address().port, HOST);
         
@@ -78,49 +130,6 @@ else // argument given for -p (connecting to established node)
 
             sock.on("end", (err) => { // TODO
                 if (err) throw err;
-                sock.on("close", (err) => {
-                    if (err) throw err;
-                })
             })
         });
-
-
-    });
-
-    // when the client receives a packet
-    client.on('data', (res) => {
-
-        if (res.slice(0, 1).readUInt8(0) == 7) // check if version is correct
-        {
-            if (res.slice(1, 2).readUInt8(0) == 1) // if welcome is received
-            {
-                console.log(`Connected to peer ${res.slice(5, 10).toString()}:${res.slice(10, 12).readUInt16BE()} at timestamp: ${singleton.getTimestamp()}`);
-                console.log(`This peer address is ${HOST}:${client.address().port} located at ${folderName}`);
-                console.log(`Received ack from ${res.slice(5, 10).toString()}:${res.slice(10, 12).readUInt16BE()}`); // TODO first slice outputs zero, not the value
-
-                if (res.slice(2, 4).readUInt16BE() >= 1)
-                {
-                    console.log(`   which is peered with:[${res.slice(12, 13).readUInt8()}.${res.slice(13, 14).readUInt8()}.${res.slice(14, 15).readUInt8()}.${res.slice(15, 16).readUInt8()}:${res.slice(16, 18).readUInt16BE()}]`);
-                }
-
-            }
-            else if (res.slice(1, 2).readUInt8(0) == 2) // if redirect is received
-            {
-                console.log(`The join has been declined; the auto-join process is performing...`);
-
-                attempts = res.slice(2, 4).readUInt16BE();
-                // TODO attempt to connect to other servers
-                console.log(`\n\nTODO\n\n`);
-            }
-        }
-        else
-        {
-            console.log(`Incorrect version, discarded packet`);
-        }
-    });
-
-    // when the client closes the connection
-    client.on(('close'), () => {
-        console.log(`Connection closed`);
-    });
 }

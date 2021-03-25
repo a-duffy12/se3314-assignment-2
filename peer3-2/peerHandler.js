@@ -40,15 +40,13 @@ module.exports = {
         let sID = [Buffer.from(folderName, "latin1"), Buffer.alloc(2)]; // latin1 makes each character one byte
         sID[1].writeUInt16BE(parseInt(sock.localPort));
         
-        // TODO make an array of port and address pairs can be sent
-
         // handle port and ip address 
         let pPort = Buffer.alloc(2);
         let pAddress = [Buffer.alloc(1), Buffer.alloc(1), Buffer.alloc(1), Buffer.alloc(1)];
 
-        for (let i = 0; i < peerTable.countPeers(); i++) // can share another peer's information
+        for (let i = 1; i <= peerTable.countPeers(); i++) // can share another peer's information
         {
-            let peer = peerTable.getPeer(i).split(":"); // get first peer
+            let peer = peerTable.getPeer(i-1).split(":"); // get first peer
             let [a, b, c, d] = peer[0].split("."); // get address of this peer
 
             pPort.writeUInt16BE(peer[1]); // get port of this peer 
